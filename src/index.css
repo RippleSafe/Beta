@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  
+  body {
+    @apply m-0 font-sans antialiased bg-background text-white text-sm overscroll-none;
+    -webkit-tap-highlight-color: transparent;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+  }
+
+  /* Disable pull-to-refresh */
+  html, body {
+    overscroll-behavior-y: none;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2.5 rounded-lg font-medium transition-all duration-200 
+           flex items-center justify-center space-x-2 active:scale-[0.98]
+           touch-none select-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white hover:shadow-glow active:bg-primary-dark 
+           disabled:bg-primary/50 disabled:shadow-none;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-light text-white hover:bg-surface-light/80 
+           active:bg-surface-light/60;
+  }
+
+  .btn-icon {
+    @apply p-2 rounded-lg text-muted hover:text-white hover:bg-surface-light/50 
+           transition-colors active:bg-surface-light;
+  }
+
+  .input {
+    @apply w-full bg-surface px-4 py-3 rounded-lg text-white 
+           border border-surface-light focus:border-primary
+           outline-none transition-all placeholder:text-muted;
+  }
+
+  .card {
+    @apply bg-surface rounded-lg border border-surface-light;
+  }
+
+  .menu-item {
+    @apply flex items-center space-x-3 p-3 rounded-lg transition-colors
+           hover:bg-surface-light/50 active:bg-surface-light;
+  }
+
+  .menu-item.active {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .token-item {
+    @apply flex items-center justify-between p-4 hover:bg-surface-light 
+           rounded-lg transition-colors cursor-pointer active:bg-surface-light/80;
+  }
+
+  .asset-amount {
+    @apply font-medium tracking-wide;
+  }
+
+  .asset-value {
+    @apply text-muted text-sm;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Loading States */
+.loading-spinner {
+  @apply w-5 h-5 border-2 border-surface-light border-t-primary rounded-full animate-spin;
+}
+
+.loading-pulse {
+  @apply animate-pulse bg-surface-light rounded-lg;
+}
+
+/* Status Badges */
+.status-badge {
+  @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+.status-badge-success {
+  @apply bg-success/10 text-success;
+}
+
+.status-badge-warning {
+  @apply bg-warning/10 text-warning;
+}
+
+.status-badge-error {
+  @apply bg-error/10 text-error;
+}
+
+/* Transaction Items */
+.transaction-item {
+  @apply flex items-center justify-between p-4 hover:bg-surface-light 
+         rounded-lg transition-colors cursor-pointer;
+}
+
+.transaction-icon {
+  @apply w-8 h-8 rounded-lg bg-surface-light flex items-center 
+         justify-center text-primary;
+}
+
+.transaction-amount {
+  @apply font-medium tracking-wide;
+}
+
+.transaction-date {
+  @apply text-muted text-xs;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 640px) {
+  .btn {
+    @apply px-3 py-2;
+  }
+
+  .input {
+    @apply px-3 py-2.5;
+  }
+
+  .card {
+    @apply rounded-lg;
+  }
+
+  .transaction-item,
+  .token-item {
+    @apply p-3;
+  }
+}
+
+/* Safe Area Handling */
+@supports(padding: max(0px)) {
+  body {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+
+  .has-safe-area {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+}

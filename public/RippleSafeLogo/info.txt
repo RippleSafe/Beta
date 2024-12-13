@@ -1,0 +1,14 @@
+
+Hope you enjoy your new logo, here are the people that
+made your beautiful logo happen :)
+font name: Aileron-Bold
+font link: http://dotcolon.net/font/aileron/
+font author: dot colon
+font author site: http://dotcolon.net/
+
+
+icon designer: Simon Child
+icon designer link: /Simon Child
+        
+{"bg":"#ECE9F4","icon-gradient-0":"#422F75","icon-gradient-1":"#C0B3EC","font":"#282335","slogan":"#3c3749"}
+      

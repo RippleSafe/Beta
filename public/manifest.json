@@ -1,0 +1,26 @@
+{
+  "short_name": "RippleSafe",
+  "name": "RippleSafe - Secure XRP Wallet",
+  "icons": [
+    {
+      "src": "RippleSafeLogo/profile.png",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "RippleSafeLogo/default.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "RippleSafeLogo/cover.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#001F3F",
+  "background_color": "#ffffff",
+  "description": "Secure, Simple, Safe XRP Management"
+} 

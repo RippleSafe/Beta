@@ -1,0 +1,61 @@
+{
+  "name": "ripplesafe",
+  "version": "1.0.0",
+  "description": "Secure, Simple, Safe XRP Management",
+  "scripts": {
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^6.1.10",
+    "@mui/lab": "^6.0.0-beta.18",
+    "@mui/material": "^6.1.10",
+    "@twa-dev/sdk": "^6.9.1",
+    "@types/bip39": "^2.4.2",
+    "@types/react-icons": "^3.0.0",
+    "autoprefixer": "^10.4.16",
+    "bip39": "^3.1.0",
+    "framer-motion": "^11.14.1",
+    "postcss": "^8.4.33",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.4.0",
+    "react-router-dom": "^7.0.2",
+    "react-scripts": "5.0.1",
+    "tailwindcss": "^3.4.1",
+    "web-vitals": "^3.5.0",
+    "xrpl": "^2.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.47",
+    "@types/react-dom": "^18.2.18",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
+    "https-browserify": "^1.0.0",
+    "process": "^0.11.10",
+    "react-app-rewired": "^2.2.1",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "typescript": "^4.9.5",
+    "url": "^0.11.4",
+    "vm-browserify": "^1.1.2"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
