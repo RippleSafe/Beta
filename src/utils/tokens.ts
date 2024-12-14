@@ -50,6 +50,24 @@ export const tokenMetadata: TokenMetadata = {
   // Add more token metadata as needed
 };
 
+export const decodeHexCurrency = (currency: string): string => {
+  // If it's a 40-character hex string
+  if (/^[0-9A-F]{40}$/i.test(currency)) {
+    try {
+      // Convert hex to ASCII and remove null bytes
+      const bytes = Buffer.from(currency, 'hex');
+      const ascii = bytes.toString('ascii').replace(/\0/g, '');
+      // If the result is alphanumeric, use it
+      if (/^[A-Za-z0-9]+$/.test(ascii)) {
+        return ascii;
+      }
+    } catch (e) {
+      console.warn('Failed to decode hex currency:', e);
+    }
+  }
+  return currency;
+};
+
 export const getTokenInfo = (issuer: string, currency: string) => {
   // Handle XRP specially
   if (currency === 'XRP') {
@@ -61,13 +79,21 @@ export const getTokenInfo = (issuer: string, currency: string) => {
     };
   }
 
-  // For other tokens, provide default values
+  // Decode hex currency if needed
+  const decodedCurrency = decodeHexCurrency(currency);
+  
+  // Check if it's in our known token metadata
+  const knownToken = tokenMetadata[issuer];
+  if (knownToken) {
+    return knownToken;
+  }
+
+  // For other tokens, provide default values with DexScreener icon
   return {
-    name: currency,
-    symbol: currency,
-    issuerName: issuer,
-    // Use a fallback icon or leave it undefined
-    icon: undefined
+    name: decodedCurrency,
+    symbol: decodedCurrency,
+    issuerName: issuer.slice(0, 4) + '...' + issuer.slice(-4),
+    icon: `https://dd.dexscreener.com/ds-data/tokens/xrpl/${currency.toLowerCase()}.${issuer.toLowerCase()}.png?size=lg&key=825b1a`
   };
 };
 

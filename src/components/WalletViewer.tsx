@@ -112,17 +112,19 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
 
       if (assetsResponse.result.lines) {
         const formattedAssets = assetsResponse.result.lines.map((line: any) => {
-          const info = getTokenInfo(line.account, line.currency) || {
-            name: line.currency,
-            symbol: line.currency,
-            issuerName: line.account
-          };
+          const info = getTokenInfo(line.account, line.currency);
           return {
             currency: line.currency,
             issuer: line.account,
             balance: parseFloat(line.balance),
             limit: line.limit,
-            info
+            info: {
+              ...info,
+              // Ensure we always have a name and symbol
+              name: info.name || line.currency,
+              symbol: info.symbol || line.currency,
+              issuerName: info.issuerName || `${line.account.slice(0, 4)}...${line.account.slice(-4)}`
+            }
           };
         }).filter(asset => asset && asset.info); // Filter out any invalid assets
         setAssets(formattedAssets);
