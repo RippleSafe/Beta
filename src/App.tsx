@@ -35,9 +35,15 @@ const App: React.FC = () => {
     const storedNetwork = localStorage.getItem('network') || 'mainnet';
     const storedWallet = localStorage.getItem('wallet');
     
+    console.log('Initial load - stored wallet exists:', !!storedWallet);
+    
     if (storedWallet) {
       try {
         const parsedWallet = JSON.parse(storedWallet);
+        console.log('Wallet parsed successfully:', {
+          address: parsedWallet.address,
+          hasPublicKey: !!parsedWallet.publicKey
+        });
         setWallet(parsedWallet);
         setIsFirstTimeUser(false);
       } catch (e) {
@@ -46,10 +52,12 @@ const App: React.FC = () => {
         setIsFirstTimeUser(true);
       }
     } else {
+      console.log('No stored wallet found');
       setIsFirstTimeUser(true);
     }
     
     setNetwork(storedNetwork as 'mainnet' | 'testnet');
+    console.log('Network set to:', storedNetwork);
     initializeWallet(storedNetwork as 'mainnet' | 'testnet');
 
     return () => {
@@ -76,6 +84,7 @@ const App: React.FC = () => {
         return;
       }
 
+      console.log('Initializing wallet for network:', networkType);
       setIsConnecting(true);
       setConnectionError(null);
       
@@ -83,6 +92,7 @@ const App: React.FC = () => {
 
       // Initialize XRPL client based on network
       const newClient = new Client(networkType === 'mainnet' ? MAINNET_URL : TESTNET_URL);
+      console.log('XRPL client created for URL:', networkType === 'mainnet' ? MAINNET_URL : TESTNET_URL);
       
       // Add connection event listeners
       newClient.on('disconnected', () => {
@@ -97,15 +107,27 @@ const App: React.FC = () => {
 
       // Get stored wallet data if not already loaded
       if (!wallet) {
+        console.log('No wallet in state, checking localStorage');
         const storedWallet = localStorage.getItem('wallet');
         if (storedWallet) {
           try {
             const parsedWallet = JSON.parse(storedWallet);
+            console.log('Found wallet in localStorage:', {
+              address: parsedWallet.address,
+              hasPublicKey: !!parsedWallet.publicKey
+            });
             setWallet(parsedWallet);
           } catch (e) {
             console.error('Error parsing stored wallet:', e);
           }
+        } else {
+          console.log('No wallet found in localStorage');
         }
+      } else {
+        console.log('Wallet already loaded in state:', {
+          address: wallet.address,
+          hasPublicKey: !!wallet.publicKey
+        });
       }
     } catch (error: unknown) {
       console.error('Error initializing wallet:', error);
@@ -144,10 +166,32 @@ const App: React.FC = () => {
   }, 5000, { leading: true, trailing: false });
 
   const handleWalletCreated = (newWallet: any) => {
-    setWallet(newWallet);
-    localStorage.setItem('wallet', JSON.stringify(newWallet));
-    localStorage.setItem('network', 'mainnet');
-    setIsFirstTimeUser(false);
+    try {
+      console.log('Creating new wallet:', {
+        address: newWallet.address,
+        hasPublicKey: !!newWallet.publicKey
+      });
+      
+      setWallet(newWallet);
+      localStorage.setItem('wallet', JSON.stringify(newWallet));
+      localStorage.setItem('network', 'mainnet');
+      
+      console.log('Wallet saved to localStorage');
+      setIsFirstTimeUser(false);
+    } catch (error) {
+      console.error('Error saving wallet:', error);
+      // Try to save without sensitive data
+      try {
+        const safeWallet = {
+          address: newWallet.address,
+          publicKey: newWallet.publicKey
+        };
+        localStorage.setItem('wallet', JSON.stringify(safeWallet));
+        console.log('Saved wallet with reduced data');
+      } catch (e) {
+        console.error('Failed to save even reduced wallet data:', e);
+      }
+    }
   };
 
   const handleNetworkChange = async (newNetwork: 'mainnet' | 'testnet') => {
