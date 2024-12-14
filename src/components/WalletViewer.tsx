@@ -212,6 +212,11 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
               src="/RippleSafeLogo/vector/icon.svg"
               alt="RippleSafe"
               className="w-16 h-16"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.onerror = null;
+                target.src = "/RippleSafeLogo/default.png";
+              }}
             />
             <div>
               <h2 className="text-xl font-bold">RippleSafe</h2>

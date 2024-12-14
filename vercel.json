@@ -12,7 +12,13 @@
   "routes": [
     {
       "src": "/static/(.*)",
+      "headers": { "cache-control": "public, max-age=31536000, immutable" },
       "dest": "/static/$1"
+    },
+    {
+      "src": "/RippleSafeLogo/(.*)",
+      "headers": { "cache-control": "public, max-age=31536000, immutable" },
+      "dest": "/RippleSafeLogo/$1"
     },
     {
       "src": "/favicon.ico",
@@ -21,10 +27,6 @@
     {
       "src": "/manifest.json",
       "dest": "/manifest.json"
-    },
-    {
-      "src": "/logo(.*)",
-      "dest": "/logo$1"
     },
     {
       "src": "/(.*)",
