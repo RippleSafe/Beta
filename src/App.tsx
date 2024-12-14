@@ -33,19 +33,29 @@ const App: React.FC = () => {
   useEffect(() => {
     const hasPassword = localStorage.getItem('walletPassword');
     const storedNetwork = localStorage.getItem('network') || 'mainnet';
-    setIsFirstTimeUser(!hasPassword);
-    setNetwork(storedNetwork as 'mainnet' | 'testnet');
+    const storedWallet = localStorage.getItem('wallet');
     
-    if (!isFirstTimeUser) {
-      initializeWallet(storedNetwork as 'mainnet' | 'testnet');
+    if (storedWallet) {
+      try {
+        const parsedWallet = JSON.parse(storedWallet);
+        setWallet(parsedWallet);
+        setIsFirstTimeUser(false);
+      } catch (e) {
+        console.error('Error parsing stored wallet:', e);
+        localStorage.removeItem('wallet');
+        setIsFirstTimeUser(true);
+      }
     } else {
-      initializeWallet('mainnet');
+      setIsFirstTimeUser(true);
     }
+    
+    setNetwork(storedNetwork as 'mainnet' | 'testnet');
+    initializeWallet(storedNetwork as 'mainnet' | 'testnet');
 
     return () => {
       cleanupConnection();
     };
-  }, [isFirstTimeUser]);
+  }, []);
 
   const cleanupConnection = () => {
     if (retryTimeout.current) {
@@ -85,10 +95,17 @@ const App: React.FC = () => {
       setClient(newClient);
       retryCount.current = 0;
 
-      // Get stored wallet data
-      const storedWallet = localStorage.getItem('wallet');
-      if (storedWallet) {
-        setWallet(JSON.parse(storedWallet));
+      // Get stored wallet data if not already loaded
+      if (!wallet) {
+        const storedWallet = localStorage.getItem('wallet');
+        if (storedWallet) {
+          try {
+            const parsedWallet = JSON.parse(storedWallet);
+            setWallet(parsedWallet);
+          } catch (e) {
+            console.error('Error parsing stored wallet:', e);
+          }
+        }
       }
     } catch (error: unknown) {
       console.error('Error initializing wallet:', error);
@@ -114,7 +131,6 @@ const App: React.FC = () => {
       }
     } finally {
       setIsConnecting(false);
-      isReconnecting.current = false;
     }
   };
 

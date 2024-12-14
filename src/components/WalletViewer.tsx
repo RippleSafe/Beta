@@ -111,13 +111,20 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
       if (!isMountedRef.current) return;
 
       if (assetsResponse.result.lines) {
-        const formattedAssets = assetsResponse.result.lines.map((line: any) => ({
-          currency: line.currency,
-          issuer: line.account,
-          balance: parseFloat(line.balance),
-          limit: line.limit,
-          info: getTokenInfo(line.account, line.currency)
-        }));
+        const formattedAssets = assetsResponse.result.lines.map((line: any) => {
+          const info = getTokenInfo(line.account, line.currency) || {
+            name: line.currency,
+            symbol: line.currency,
+            issuerName: line.account
+          };
+          return {
+            currency: line.currency,
+            issuer: line.account,
+            balance: parseFloat(line.balance),
+            limit: line.limit,
+            info
+          };
+        }).filter(asset => asset && asset.info); // Filter out any invalid assets
         setAssets(formattedAssets);
         setCachedAssets(wallet.address, formattedAssets);
       }
@@ -313,9 +320,9 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-surface-light flex items-center justify-center overflow-hidden">
-                    {asset.currency ? (
+                    {asset.info.icon ? (
                       <img
-                        src={`https://dd.dexscreener.com/ds-data/tokens/xrpl/${asset.currency.toLowerCase()}.${asset.issuer.toLowerCase()}.png?size=lg&key=825b1a`}
+                        src={asset.info.icon}
                         alt={asset.info.symbol}
                         className="w-full h-full object-cover"
                         onError={(e) => {

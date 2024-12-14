@@ -50,28 +50,25 @@ export const tokenMetadata: TokenMetadata = {
   // Add more token metadata as needed
 };
 
-export const getTokenInfo = (issuer: string, currency: string): TokenInfo => {
-  // If currency is hex, decode it for display but keep hex for URL
-  let displayName = currency;
-  if (/^[0-9A-F]{40}$/i.test(currency)) {
-    try {
-      const ascii = Buffer.from(currency, 'hex').toString('ascii').replace(/\0/g, '');
-      if (ascii.match(/^[A-Za-z0-9]{3,}$/)) {
-        displayName = ascii;
-      }
-    } catch {
-      // Keep original currency if decode fails
-    }
+export const getTokenInfo = (issuer: string, currency: string) => {
+  // Handle XRP specially
+  if (currency === 'XRP') {
+    return {
+      name: 'XRP',
+      symbol: 'XRP',
+      issuerName: 'Ripple',
+      icon: 'https://cryptologos.cc/logos/xrp-xrp-logo.png'
+    };
   }
 
-  const defaultInfo: TokenInfo = {
-    name: displayName,
-    symbol: displayName,
-    issuerName: `${issuer.slice(0, 4)}...${issuer.slice(-4)}`,
-    icon: `https://dd.dexscreener.com/ds-data/tokens/xrpl/${currency.toLowerCase()}.${issuer.toLowerCase()}.png?size=lg&key=825b1a`
+  // For other tokens, provide default values
+  return {
+    name: currency,
+    symbol: currency,
+    issuerName: issuer,
+    // Use a fallback icon or leave it undefined
+    icon: undefined
   };
-
-  return tokenMetadata[issuer] || defaultInfo;
 };
 
 export const formatCurrency = (currency: string): string => {
