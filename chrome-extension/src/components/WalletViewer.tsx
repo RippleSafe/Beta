@@ -11,15 +11,15 @@ import debounce from 'lodash/debounce';
 // Chrome storage helper functions
 const chromeStorage = {
   get: async (key: string) => {
-    return new Promise((resolve) => {
+    return new Promise<any>((resolve) => {
       chrome.storage.local.get([key], (result) => {
         resolve(result[key]);
       });
     });
   },
   set: async (key: string, value: any) => {
-    return new Promise((resolve) => {
-      chrome.storage.local.set({ [key]: value }, resolve);
+    return new Promise<void>((resolve) => {
+      chrome.storage.local.set({ [key]: value }, () => resolve());
     });
   }
 };

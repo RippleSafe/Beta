@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "description": "RippleSafe Chrome Extension",
   "scripts": {
-    "start": "react-scripts start",
-    "build": "INLINE_RUNTIME_CHUNK=false react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "react-app-rewired start",
+    "build": "npm run generate-icons && INLINE_RUNTIME_CHUNK=false react-app-rewired build",
+    "test": "react-app-rewired test",
+    "eject": "react-scripts eject",
+    "generate-icons": "node scripts/generate-icons.js"
   },
   "dependencies": {
     "@types/node": "^16.18.0",
@@ -19,16 +20,29 @@
     "react-dom": "^18.2.0",
     "react-icons": "^4.10.0",
     "react-scripts": "5.0.1",
+    "sharp": "^0.33.2",
     "typescript": "^4.9.5",
-    "xrpl": "^2.7.0",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "xrpl": "^2.7.0"
   },
   "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@types/chrome": "^0.0.246",
     "@types/lodash": "^4.14.195",
+    "assert": "^2.1.0",
     "autoprefixer": "^10.4.14",
+    "buffer": "^6.0.3",
+    "copy-webpack-plugin": "^12.0.2",
+    "crypto-browserify": "^3.12.0",
+    "https-browserify": "^1.0.0",
+    "os-browserify": "^0.3.0",
     "postcss": "^8.4.24",
-    "tailwindcss": "^3.3.2"
+    "process": "^0.11.10",
+    "react-app-rewired": "^2.2.1",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "tailwindcss": "^3.3.2",
+    "url": "^0.11.3"
   },
   "eslintConfig": {
     "extends": [
@@ -48,4 +62,4 @@
       "last 1 safari version"
     ]
   }
-} 
+}

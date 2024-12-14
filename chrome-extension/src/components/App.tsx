@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { XrplProvider } from './contexts/XrplContext';
-import { WalletProvider } from './contexts/WalletContext';
-import { WalletViewer } from './components/WalletViewer';
+import { XrplProvider } from '../contexts/XrplContext';
+import { WalletProvider } from '../contexts/WalletContext';
+import { WalletViewer } from './WalletViewer';
 import { Client } from 'xrpl';
 
 const App: React.FC = () => {
