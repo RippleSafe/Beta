@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Client, Payment } from 'xrpl';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RiArrowDownLine, RiSwapLine } from 'react-icons/ri';
+import { RiArrowDownLine, RiSwapLine, RiRefreshLine } from 'react-icons/ri';
 import { findPath, setupTrustline, submitTransaction, getTrustlines } from '../utils/xrpl';
 import { useXrpl } from '../contexts/XrplContext';
+import { useWallet } from '../contexts/WalletContext';
 
 interface TokenSwapProps {
   wallet: {
@@ -82,6 +83,7 @@ const TokenImage: React.FC<{ token: Token }> = ({ token }) => {
 
 export const TokenSwap: React.FC<TokenSwapProps> = ({ wallet, client }) => {
   const { ensureConnection } = useXrpl();
+  const { getCachedAssets, setCachedAssets } = useWallet();
   const [fromToken, setFromToken] = useState<Token>({ currency: 'XRP', issuer: '', name: 'XRP' });
   const [toToken, setToToken] = useState<Token | null>(null);
   const [amount, setAmount] = useState('');
@@ -93,27 +95,112 @@ export const TokenSwap: React.FC<TokenSwapProps> = ({ wallet, client }) => {
   const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
   const [isLoadingTokens, setIsLoadingTokens] = useState(true);
   const [tokenInfoCache, setTokenInfoCache] = useState<Record<string, TokenInfo>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRefreshSuccess, setShowRefreshSuccess] = useState(false);
 
   useEffect(() => {
-    const loadTokens = async () => {
-      try {
-        // Check if we're on testnet by looking at the client's connection URL
-        const isTestnet = client.url.includes('altnet');
-        setNetwork(isTestnet ? 'testnet' : 'mainnet');
-        
-        // Ensure client is connected before proceeding
-        await ensureConnection(client);
-        
-        // Load available tokens
-        await loadAvailableTokens();
-      } catch (err) {
-        console.error('[TokenSwap] Error in loadTokens:', err);
-        setError('Failed to initialize token loading. Please try again.');
-      }
-    };
+    // Load cached data first
+    const cachedAssets = getCachedAssets(wallet.address);
+    if (cachedAssets) {
+      const tokens = formatAssetsToTokens(cachedAssets);
+      setAvailableTokens(tokens);
+      setIsLoadingTokens(false);
+    }
+    
+    // Only load fresh data if no cached data
+    if (!cachedAssets) {
+      loadAvailableTokens();
+    }
+  }, [wallet.address]);
 
-    loadTokens();
-  }, [client.url, client, wallet.address, ensureConnection]);
+  const loadAvailableTokens = async () => {
+    try {
+      setIsLoadingTokens(true);
+      setError(null);
+      console.log('[TokenSwap] Starting to load available tokens');
+      
+      // Always include XRP
+      const tokens: Token[] = [{
+        currency: 'XRP',
+        issuer: '',
+        name: 'XRP',
+        balance: '0',
+        decodedCurrency: 'XRP',
+        logoUrl: 'https://cryptologos.cc/logos/xrp-xrp-logo.png'
+      }];
+      
+      // Get trustlines and balances
+      console.log('[TokenSwap] Fetching trustlines...');
+      const trustlines = await getTrustlines(client, wallet.address, ensureConnection);
+      console.log('[TokenSwap] Trustlines received:', trustlines);
+      
+      if (!Array.isArray(trustlines)) {
+        throw new Error('Invalid trustlines response');
+      }
+      
+      // Add tokens from trustlines with balances
+      for (const line of trustlines) {
+        try {
+          console.log('[TokenSwap] Processing trustline:', line);
+          if (Number(line.balance) > 0) {
+            console.log('[TokenSwap] Found token with positive balance:', line);
+            const tokenInfo = await fetchTokenInfo(line.currency, line.account);
+            console.log('[TokenSwap] Token info fetched:', tokenInfo);
+            tokens.push({
+              currency: line.currency,
+              issuer: line.account,
+              name: tokenInfo.name,
+              balance: line.balance,
+              decodedCurrency: tokenInfo.symbol,
+              logoUrl: tokenInfo.logoUrl || undefined
+            });
+          }
+        } catch (lineError) {
+          console.error('[TokenSwap] Error processing trustline:', lineError);
+          // Continue processing other trustlines
+        }
+      }
+      
+      setAvailableTokens(tokens);
+      setCachedAssets(wallet.address, tokens);
+
+      if (isRefreshing) {
+        setShowRefreshSuccess(true);
+        setTimeout(() => setShowRefreshSuccess(false), 2000);
+        setIsRefreshing(false);
+      }
+    } catch (error) {
+      console.error('[TokenSwap] Error loading tokens:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load tokens');
+    } finally {
+      setIsLoadingTokens(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadAvailableTokens();
+  };
+
+  const formatAssetsToTokens = (assets: any[]): Token[] => {
+    const tokens: Token[] = [{
+      currency: 'XRP',
+      issuer: '',
+      name: 'XRP',
+      balance: '0',
+      decodedCurrency: 'XRP',
+      logoUrl: 'https://cryptologos.cc/logos/xrp-xrp-logo.png'
+    }];
+
+    return tokens.concat(assets.map(asset => ({
+      currency: asset.currency,
+      issuer: asset.issuer,
+      name: asset.info.name,
+      balance: asset.balance.toString(),
+      decodedCurrency: asset.info.symbol,
+      logoUrl: asset.info.icon
+    })));
+  };
 
   useEffect(() => {
     // Add error event listeners to the client
@@ -255,79 +342,6 @@ export const TokenSwap: React.FC<TokenSwapProps> = ({ wallet, client }) => {
     }));
     
     return defaultInfo;
-  };
-
-  const loadAvailableTokens = async () => {
-    try {
-      setIsLoadingTokens(true);
-      setError(null);
-      console.log('[TokenSwap] Starting to load available tokens');
-      
-      // Always include XRP
-      const tokens: Token[] = [{
-        currency: 'XRP',
-        issuer: '',
-        name: 'XRP',
-        balance: '0',
-        decodedCurrency: 'XRP',
-        logoUrl: 'https://cryptologos.cc/logos/xrp-xrp-logo.png'
-      }];
-      
-      // Get trustlines and balances
-      console.log('[TokenSwap] Fetching trustlines...');
-      const trustlines = await getTrustlines(client, wallet.address, ensureConnection);
-      console.log('[TokenSwap] Trustlines received:', trustlines);
-      
-      if (!Array.isArray(trustlines)) {
-        throw new Error('Invalid trustlines response');
-      }
-      
-      // Add tokens from trustlines with balances
-      for (const line of trustlines) {
-        try {
-          console.log('[TokenSwap] Processing trustline:', line);
-          if (Number(line.balance) > 0) {
-            console.log('[TokenSwap] Found token with positive balance:', line);
-            const tokenInfo = await fetchTokenInfo(line.currency, line.account);
-            console.log('[TokenSwap] Token info fetched:', tokenInfo);
-            tokens.push({
-              currency: line.currency,
-              issuer: line.account,
-              name: tokenInfo.name,
-              balance: line.balance,
-              decodedCurrency: tokenInfo.symbol,
-              logoUrl: tokenInfo.logoUrl || undefined
-            });
-          }
-        } catch (lineError) {
-          console.error('[TokenSwap] Error processing trustline:', lineError);
-          // Continue processing other trustlines
-        }
-      }
-      
-      console.log('[TokenSwap] Final tokens list:', tokens);
-      setAvailableTokens(tokens);
-      
-      // Set default toToken if not set
-      if (!toToken && tokens.length > 1) {
-        console.log('[TokenSwap] Setting default toToken:', tokens[1]);
-        setToToken(tokens[1]);
-      }
-    } catch (error) {
-      console.error('[TokenSwap] Error loading tokens:', error);
-      setError('Failed to load available tokens. Please try refreshing.');
-      // Set minimum viable token list
-      setAvailableTokens([{
-        currency: 'XRP',
-        issuer: '',
-        name: 'XRP',
-        balance: '0',
-        decodedCurrency: 'XRP',
-        logoUrl: 'https://cryptologos.cc/logos/xrp-xrp-logo.png'
-      }]);
-    } finally {
-      setIsLoadingTokens(false);
-    }
   };
 
   const handleTokenSelect = (token: Token) => {
@@ -637,156 +651,181 @@ export const TokenSwap: React.FC<TokenSwapProps> = ({ wallet, client }) => {
     <div className="space-y-6">
       {/* Header */}
       <div className="card bg-gradient-to-br from-surface-light to-surface p-6">
-        <h2 className="text-xl font-bold mb-2">Swap Tokens</h2>
-        <p className="text-sm text-muted">Exchange tokens instantly</p>
-      </div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold">Swap Tokens</h2>
+            <p className="text-sm text-muted">Exchange your tokens</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isLoadingTokens}
+              className="btn btn-icon"
+              title="Refresh tokens"
+            >
+              <RiRefreshLine className={`text-xl ${isLoadingTokens ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
 
-      {/* Swap Interface */}
-      <div className="card bg-surface p-6 space-y-4">
-        {/* From Token */}
-        <div className="space-y-2">
-          <label className="text-sm text-muted">From</label>
-          <button
-            onClick={() => setShowTokenSelect('from')}
-            className="w-full bg-surface-light rounded-lg p-4 flex items-center justify-between hover:bg-surface-light/80 transition-colors"
-          >
-            <div className="flex items-center space-x-3">
-              <TokenImage token={fromToken} />
-              <div>
-                <span className="font-medium">{fromToken.decodedCurrency || fromToken.currency}</span>
-                {fromToken.balance && (
-                  <p className="text-sm text-muted">Balance: {fromToken.balance}</p>
-                )}
+        {/* Success Popup */}
+        {showRefreshSuccess && (
+          <div className="fixed top-4 right-4 z-50">
+            <div className="card bg-success/10 text-success p-4">
+              <div className="flex items-center space-x-2">
+                <span>Tokens updated!</span>
               </div>
             </div>
-            <RiArrowDownLine className="text-xl text-muted" />
-          </button>
-        </div>
+          </div>
+        )}
 
-        {/* Swap Direction Button */}
-        <div className="flex justify-center">
-          <button
-            onClick={handleSwapTokens}
-            disabled={!toToken}
-            className="bg-surface-light w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-light/80 transition-colors disabled:opacity-50"
-          >
-            <RiSwapLine className="text-xl rotate-90" />
-          </button>
-        </div>
-
-        {/* To Token */}
-        <div className="space-y-2">
-          <label className="text-sm text-muted">To</label>
-          <button
-            onClick={() => setShowTokenSelect('to')}
-            className="w-full bg-surface-light rounded-lg p-4 flex items-center justify-between hover:bg-surface-light/80 transition-colors"
-          >
-            {toToken ? (
+        {/* Swap Interface */}
+        <div className="card bg-surface p-6 space-y-4">
+          {/* From Token */}
+          <div className="space-y-2">
+            <label className="text-sm text-muted">From</label>
+            <button
+              onClick={() => setShowTokenSelect('from')}
+              className="w-full bg-surface-light rounded-lg p-4 flex items-center justify-between hover:bg-surface-light/80 transition-colors"
+            >
               <div className="flex items-center space-x-3">
-                <TokenImage token={toToken} />
+                <TokenImage token={fromToken} />
                 <div>
-                  <span className="font-medium">{toToken.decodedCurrency || toToken.currency}</span>
-                  <p className="text-sm text-muted">
-                    {toToken.issuer ? `${toToken.issuer.slice(0, 4)}...${toToken.issuer.slice(-4)}` : 'Native'}
-                  </p>
-                  {toToken.balance && (
-                    <p className="text-sm text-muted">Balance: {toToken.balance}</p>
+                  <span className="font-medium">{fromToken.decodedCurrency || fromToken.currency}</span>
+                  {fromToken.balance && (
+                    <p className="text-sm text-muted">Balance: {fromToken.balance}</p>
                   )}
                 </div>
               </div>
-            ) : (
-              <span className="text-muted">Select token</span>
-            )}
-            <RiArrowDownLine className="text-xl text-muted" />
+              <RiArrowDownLine className="text-xl text-muted" />
+            </button>
+          </div>
+
+          {/* Swap Direction Button */}
+          <div className="flex justify-center">
+            <button
+              onClick={handleSwapTokens}
+              disabled={!toToken}
+              className="bg-surface-light w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-light/80 transition-colors disabled:opacity-50"
+            >
+              <RiSwapLine className="text-xl rotate-90" />
+            </button>
+          </div>
+
+          {/* To Token */}
+          <div className="space-y-2">
+            <label className="text-sm text-muted">To</label>
+            <button
+              onClick={() => setShowTokenSelect('to')}
+              className="w-full bg-surface-light rounded-lg p-4 flex items-center justify-between hover:bg-surface-light/80 transition-colors"
+            >
+              {toToken ? (
+                <div className="flex items-center space-x-3">
+                  <TokenImage token={toToken} />
+                  <div>
+                    <span className="font-medium">{toToken.decodedCurrency || toToken.currency}</span>
+                    <p className="text-sm text-muted">
+                      {toToken.issuer ? `${toToken.issuer.slice(0, 4)}...${toToken.issuer.slice(-4)}` : 'Native'}
+                    </p>
+                    {toToken.balance && (
+                      <p className="text-sm text-muted">Balance: {toToken.balance}</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <span className="text-muted">Select token</span>
+              )}
+              <RiArrowDownLine className="text-xl text-muted" />
+            </button>
+          </div>
+
+          {/* Amount Input */}
+          <div className="space-y-2">
+            <label className="text-sm text-muted">Amount</label>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              className="w-full bg-surface-light rounded-lg p-4"
+            />
+          </div>
+
+          {/* Error/Success Messages */}
+          {error && (
+            <div className="p-3 bg-error/10 border border-error/20 rounded-lg">
+              <p className="text-sm text-error">{error}</p>
+            </div>
+          )}
+          {success && (
+            <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
+              <p className="text-sm text-success">{success}</p>
+            </div>
+          )}
+
+          {/* Swap Button */}
+          <button
+            onClick={handleSwap}
+            disabled={isLoading || !amount || Number(amount) <= 0}
+            className="btn btn-primary w-full"
+          >
+            {isLoading ? 'Swapping...' : 'Swap'}
           </button>
         </div>
 
-        {/* Amount Input */}
-        <div className="space-y-2">
-          <label className="text-sm text-muted">Amount</label>
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="w-full bg-surface-light rounded-lg p-4"
-          />
-        </div>
-
-        {/* Error/Success Messages */}
-        {error && (
-          <div className="p-3 bg-error/10 border border-error/20 rounded-lg">
-            <p className="text-sm text-error">{error}</p>
-          </div>
-        )}
-        {success && (
-          <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
-            <p className="text-sm text-success">{success}</p>
-          </div>
-        )}
-
-        {/* Swap Button */}
-        <button
-          onClick={handleSwap}
-          disabled={isLoading || !amount || Number(amount) <= 0}
-          className="btn btn-primary w-full"
-        >
-          {isLoading ? 'Swapping...' : 'Swap'}
-        </button>
-      </div>
-
-      {/* Token Select Modal */}
-      <AnimatePresence>
-        {showTokenSelect && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowTokenSelect(null)}
-          >
+        {/* Token Select Modal */}
+        <AnimatePresence>
+          {showTokenSelect && (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-sm"
-              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+              onClick={() => setShowTokenSelect(null)}
             >
-              <div className="card bg-surface p-6 space-y-4">
-                <h3 className="text-lg font-bold">Select Token</h3>
-                {isLoadingTokens ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="loading-spinner" />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {availableTokens.map((token) => (
-                      <button
-                        key={`${token.currency}-${token.issuer}`}
-                        onClick={() => handleTokenSelect(token)}
-                        className="w-full bg-surface-light rounded-lg p-4 flex items-center justify-between hover:bg-surface-light/80 transition-colors"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <TokenImage token={token} />
-                          <div>
-                            <span className="font-medium">{token.decodedCurrency || token.currency}</span>
-                            <p className="text-sm text-muted">
-                              {token.issuer ? `${token.issuer.slice(0, 4)}...${token.issuer.slice(-4)}` : 'Native'}
-                            </p>
-                            {token.balance && (
-                              <p className="text-sm text-muted">Balance: {token.balance}</p>
-                            )}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="w-full max-w-sm"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="card bg-surface p-6 space-y-4">
+                  <h3 className="text-lg font-bold">Select Token</h3>
+                  {isLoadingTokens ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="loading-spinner" />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableTokens.map((token) => (
+                        <button
+                          key={`${token.currency}-${token.issuer}`}
+                          onClick={() => handleTokenSelect(token)}
+                          className="w-full bg-surface-light rounded-lg p-4 flex items-center justify-between hover:bg-surface-light/80 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <TokenImage token={token} />
+                            <div>
+                              <span className="font-medium">{token.decodedCurrency || token.currency}</span>
+                              <p className="text-sm text-muted">
+                                {token.issuer ? `${token.issuer.slice(0, 4)}...${token.issuer.slice(-4)}` : 'Native'}
+                              </p>
+                              {token.balance && (
+                                <p className="text-sm text-muted">Balance: {token.balance}</p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }; 

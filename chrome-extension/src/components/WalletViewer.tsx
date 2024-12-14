@@ -8,6 +8,22 @@ import { useXrpl } from '../contexts/XrplContext';
 import { useWallet } from '../contexts/WalletContext';
 import debounce from 'lodash/debounce';
 
+// Chrome storage helper functions
+const chromeStorage = {
+  get: async (key: string) => {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([key], (result) => {
+        resolve(result[key]);
+      });
+    });
+  },
+  set: async (key: string, value: any) => {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [key]: value }, resolve);
+    });
+  }
+};
+
 interface WalletViewerProps {
   wallet: {
     address: string;
@@ -37,8 +53,8 @@ interface Asset {
 const INITIAL_RETRY_DELAY = 2000;
 const MAX_RETRY_DELAY = 32000;
 const MAX_RETRIES = 3;
-const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
-const MIN_FETCH_INTERVAL = 10000; // 10 seconds
+const AUTO_REFRESH_INTERVAL = 30000;
+const MIN_FETCH_INTERVAL = 10000;
 
 type FetchWalletDataType = (retryCount?: number) => Promise<void>;
 type ReconnectType = () => Promise<void>;
@@ -52,18 +68,31 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
 }) => {
   const { ensureConnection } = useXrpl();
   const { getCachedBalance, setCachedBalance, getCachedAssets, setCachedAssets } = useWallet();
-  const [balance, setBalance] = useState<string>(getCachedBalance(wallet.address) || '0');
-  const [assets, setAssets] = useState<Asset[]>(getCachedAssets(wallet.address) || []);
+  const [balance, setBalance] = useState<string>('0');
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showReceive, setShowReceive] = useState(false);
   const [isAddressHidden, setIsAddressHidden] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const retryTimeoutRef = useRef<NodeJS.Timeout>();
+  const retryTimeoutRef = useRef<number>();
   const isMountedRef = useRef(true);
   const lastFetchRef = useRef<number>(0);
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout>();
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const autoRefreshIntervalRef = useRef<number>();
+  const reconnectTimeoutRef = useRef<number>();
+
+  // Load cached data from Chrome storage
+  useEffect(() => {
+    const loadCachedData = async () => {
+      const cachedBalance = await chromeStorage.get(`balance_${wallet.address}`);
+      const cachedAssets = await chromeStorage.get(`assets_${wallet.address}`);
+      
+      if (cachedBalance) setBalance(cachedBalance);
+      if (cachedAssets) setAssets(cachedAssets);
+    };
+    
+    loadCachedData();
+  }, [wallet.address]);
 
   const handleReconnect = useCallback<ReconnectType>(async () => {
     if (!isMountedRef.current || isLoading) return;
@@ -73,8 +102,7 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
       await fetchWalletData();
     } catch (err) {
       console.error('Reconnection attempt failed:', err);
-      // Schedule next reconnection attempt
-      reconnectTimeoutRef.current = setTimeout(() => {
+      reconnectTimeoutRef.current = window.setTimeout(() => {
         if (isMountedRef.current) {
           handleReconnect();
         }
@@ -101,7 +129,7 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
       if (!isMountedRef.current) return;
       
       setBalance(balanceResponse);
-      setCachedBalance(wallet.address, balanceResponse);
+      await chromeStorage.set(`balance_${wallet.address}`, balanceResponse);
 
       const assetsResponse = await client.request({
         command: 'account_lines',
@@ -119,7 +147,7 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
           info: getTokenInfo(line.account, line.currency)
         }));
         setAssets(formattedAssets);
-        setCachedAssets(wallet.address, formattedAssets);
+        await chromeStorage.set(`assets_${wallet.address}`, formattedAssets);
       }
 
       setIsConnected(true);
@@ -133,13 +161,13 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
 
       if (retryCount < MAX_RETRIES) {
         const delay = Math.min(INITIAL_RETRY_DELAY * Math.pow(2, retryCount), MAX_RETRY_DELAY);
-        retryTimeoutRef.current = setTimeout(() => {
+        retryTimeoutRef.current = window.setTimeout(() => {
           if (isMountedRef.current) {
             fetchWalletData(retryCount + 1);
           }
         }, delay);
       } else {
-        reconnectTimeoutRef.current = setTimeout(() => {
+        reconnectTimeoutRef.current = window.setTimeout(() => {
           if (isMountedRef.current) {
             handleReconnect();
           }
@@ -150,7 +178,7 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
         setIsLoading(false);
       }
     }
-  }, [client, wallet.address, setCachedBalance, setCachedAssets, ensureConnection]);
+  }, [client, wallet.address, ensureConnection]);
 
   const debouncedFetchWalletData = useCallback(
     debounce(() => fetchWalletData(), 1000, { leading: true, trailing: false }),
@@ -165,7 +193,7 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
   useEffect(() => {
     isMountedRef.current = true;
     
-    autoRefreshIntervalRef.current = setInterval(() => {
+    autoRefreshIntervalRef.current = window.setInterval(() => {
       if (isMountedRef.current && !isLoading) {
         debouncedFetchWalletData();
       }
@@ -174,13 +202,13 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
     return () => {
       isMountedRef.current = false;
       if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
+        window.clearTimeout(retryTimeoutRef.current);
       }
       if (autoRefreshIntervalRef.current) {
-        clearInterval(autoRefreshIntervalRef.current);
+        window.clearInterval(autoRefreshIntervalRef.current);
       }
       if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+        window.clearTimeout(reconnectTimeoutRef.current);
       }
     };
   }, [debouncedFetchWalletData, isLoading]);
@@ -202,33 +230,40 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
     initializeWallet();
   }, [client, ensureConnection, fetchWalletData]);
 
+  // Extension-specific styles
+  const containerStyle = {
+    width: '360px',
+    maxHeight: '600px',
+    overflow: 'auto'
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={containerStyle}>
       {/* Header */}
-      <div className="card bg-gradient-to-br from-surface-light to-surface p-6">
+      <div className="card bg-gradient-to-br from-surface-light to-surface p-4">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <img 
-              src="/RippleSafeLogo/vector/icon.svg"
+              src="/icons/icon48.png"
               alt="RippleSafe"
-              className="w-16 h-16"
+              className="w-12 h-12"
             />
             <div>
-              <h2 className="text-xl font-bold">RippleSafe</h2>
+              <h2 className="text-lg font-bold">RippleSafe</h2>
               <div className="flex items-center mt-2 space-x-2">
                 <button
                   onClick={handleRefresh}
                   disabled={isLoading}
-                  className="btn btn-icon"
+                  className="btn btn-icon btn-sm"
                   title={isLoading ? "Refreshing..." : "Refresh wallet data"}
                 >
-                  <RiRefreshLine className={`text-xl ${isLoading ? 'animate-spin' : ''}`} />
+                  <RiRefreshLine className={`text-lg ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
                 <button
                   onClick={() => onNavigate('settings')}
-                  className="btn btn-icon"
+                  className="btn btn-icon btn-sm"
                 >
-                  <RiSettings4Line className="text-xl" />
+                  <RiSettings4Line className="text-lg" />
                 </button>
                 <div className="text-sm ml-2" title={isConnected ? "Connected to network" : "Not connected"}>
                   {isConnected ? (
@@ -247,7 +282,7 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
           {error ? (
             <div className="text-red-500 text-sm mb-2">{error}</div>
           ) : null}
-          <div className="text-3xl font-bold mb-2">
+          <div className="text-2xl font-bold mb-2">
             {isLoading ? (
               <div className="loading-spinner mx-auto" />
             ) : (
@@ -270,19 +305,19 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 mt-4">
+        <div className="flex gap-2 mt-4">
           <button
             onClick={() => setShowReceive(true)}
-            className="btn btn-secondary flex-1 py-3"
+            className="btn btn-secondary flex-1 py-2 text-sm"
           >
-            <RiQrCodeLine className="text-xl mr-2" />
+            <RiQrCodeLine className="text-lg mr-1" />
             Receive
           </button>
           <button
             onClick={() => onNavigate('swap')}
-            className="btn btn-primary flex-1 py-3"
+            className="btn btn-primary flex-1 py-2 text-sm"
           >
-            <RiArrowRightLine className="text-xl mr-2" />
+            <RiArrowRightLine className="text-lg mr-1" />
             Swap
           </button>
         </div>
@@ -299,15 +334,15 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
             Manage
           </button>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2 max-h-[200px] overflow-auto">
           {assets.length > 0 ? (
             assets.map((asset, index) => (
               <div
                 key={`${asset.currency}-${asset.issuer}-${index}`}
-                className="flex items-center justify-between p-3 bg-surface-light rounded-lg"
+                className="flex items-center justify-between p-2 bg-surface-light rounded-lg"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-surface-light flex items-center justify-center overflow-hidden">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-surface-light flex items-center justify-center overflow-hidden">
                     {asset.currency ? (
                       <img
                         src={`https://dd.dexscreener.com/ds-data/tokens/xrpl/${asset.currency.toLowerCase()}.${asset.issuer.toLowerCase()}.png?size=lg&key=825b1a`}
@@ -319,28 +354,28 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
                           const parent = target.parentElement;
                           if (parent) {
                             const span = document.createElement('span');
-                            span.className = 'text-sm font-medium';
+                            span.className = 'text-xs font-medium';
                             span.textContent = asset.info.symbol.slice(0, 2).toUpperCase();
                             parent.appendChild(span);
                           }
                         }}
                       />
                     ) : (
-                      <span className="text-sm font-medium">
+                      <span className="text-xs font-medium">
                         {asset.info.symbol.slice(0, 2).toUpperCase()}
                       </span>
                     )}
                   </div>
                   <div>
-                    <div className="font-medium">{asset.info.name}</div>
-                    <div className="text-sm text-muted">
+                    <div className="font-medium text-sm">{asset.info.name}</div>
+                    <div className="text-xs text-muted">
                       {asset.info.issuerName}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-medium">{asset.balance} {asset.info.symbol}</div>
-                  <div className="text-sm text-muted">
+                  <div className="font-medium text-sm">{asset.balance} {asset.info.symbol}</div>
+                  <div className="text-xs text-muted">
                     Limit: {asset.limit}
                   </div>
                 </div>
@@ -348,10 +383,10 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
             ))
           ) : (
             <div className="text-center text-muted py-4">
-              <p>No assets found</p>
+              <p className="text-sm">No assets found</p>
               <button
                 onClick={() => onNavigate('trustlines')}
-                className="btn btn-secondary mt-2"
+                className="btn btn-secondary btn-sm mt-2"
               >
                 Add Trustline
               </button>
@@ -374,27 +409,27 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-sm"
+              className="w-full max-w-[280px]"
               onClick={e => e.stopPropagation()}
             >
-              <div className="card bg-surface p-6 space-y-4">
+              <div className="card bg-surface p-4 space-y-4">
                 <h3 className="text-lg font-bold text-center">Receive XRP</h3>
-                <div className="bg-white p-4 rounded-lg">
+                <div className="bg-white p-3 rounded-lg">
                   <QRCodeSVG
                     value={wallet.address}
-                    size={256}
+                    size={200}
                     className="w-full h-auto"
                     level="H"
                   />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm text-muted break-all">
+                  <p className="text-xs text-muted break-all">
                     {wallet.address}
                   </p>
                 </div>
                 <button
                   onClick={() => setShowReceive(false)}
-                  className="btn btn-secondary w-full py-3"
+                  className="btn btn-secondary w-full py-2 text-sm"
                 >
                   Close
                 </button>
@@ -405,4 +440,4 @@ export const WalletViewer: React.FC<WalletViewerProps> = ({
       </AnimatePresence>
     </div>
   );
-};
+}; 

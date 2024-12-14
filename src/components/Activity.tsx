@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Client } from 'xrpl';
 import { getTransactionHistory, TransactionHistory, getBalance } from '../utils/xrpl';
-import { RiArrowUpLine, RiArrowDownLine, RiSwapLine, RiErrorWarningLine } from 'react-icons/ri';
+import { RiArrowUpLine, RiArrowDownLine, RiSwapLine, RiErrorWarningLine, RiExternalLinkLine, RiEyeLine, RiEyeOffLine, RiRefreshLine } from 'react-icons/ri';
 import { motion } from 'framer-motion';
 import { useXrpl } from '../contexts/XrplContext';
+import { useWallet } from '../contexts/WalletContext';
+import localforage from 'localforage';
 
 interface ActivityProps {
   wallet: {
@@ -15,18 +17,34 @@ interface ActivityProps {
   currentNetwork: 'mainnet' | 'testnet';
 }
 
+const CACHE_KEY_PREFIX = 'txHistory_';
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
 export const Activity: React.FC<ActivityProps> = ({ wallet, client, currentNetwork }) => {
   const { ensureConnection } = useXrpl();
+  const { getCachedTransactions, setCachedTransactions } = useWallet();
   const [transactions, setTransactions] = useState<TransactionHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAccountActivated, setIsAccountActivated] = useState(true);
   const [balance, setBalance] = useState('0');
   const [retryCount, setRetryCount] = useState(0);
+  const [isAddressHidden, setIsAddressHidden] = useState(false);
+  const [showRefreshSuccess, setShowRefreshSuccess] = useState(false);
   const maxRetries = 3;
 
   useEffect(() => {
-    checkAccountStatus();
+    // Load cached data first
+    const cachedTxs = getCachedTransactions(wallet.address);
+    if (cachedTxs) {
+      setTransactions(cachedTxs);
+      setIsLoading(false);
+    }
+    
+    // Only check account status if no cached data
+    if (!cachedTxs) {
+      checkAccountStatus();
+    }
   }, [wallet.address]);
 
   const checkAccountStatus = async () => {
@@ -70,6 +88,7 @@ export const Activity: React.FC<ActivityProps> = ({ wallet, client, currentNetwo
     try {
       const history = await getTransactionHistory(client, wallet.address);
       setTransactions(history);
+      setCachedTransactions(wallet.address, history);
       setError(null);
     } catch (err: any) {
       console.error('Error fetching transactions:', err);
@@ -87,14 +106,96 @@ export const Activity: React.FC<ActivityProps> = ({ wallet, client, currentNetwo
     checkAccountStatus();
   };
 
+  const handleRefresh = async () => {
+    try {
+      await checkAccountStatus();
+      setShowRefreshSuccess(true);
+      setTimeout(() => setShowRefreshSuccess(false), 2000);
+    } catch (err) {
+      console.error('Error refreshing data:', err);
+    }
+  };
+
   const getExplorerUrl = (hash: string) => {
     return currentNetwork === 'mainnet'
       ? `https://livenet.xrpl.org/transactions/${hash}`
       : `https://testnet.xrpl.org/transactions/${hash}`;
   };
 
+  const getAccountExplorerUrl = () => {
+    return currentNetwork === 'mainnet'
+      ? `https://livenet.xrpl.org/accounts/${wallet.address}`
+      : `https://testnet.xrpl.org/accounts/${wallet.address}`;
+  };
+
+  const getBulletColor = (type: string, isNegative: boolean) => {
+    switch (type) {
+      case 'Payment':
+        return isNegative ? 'bg-error' : 'bg-success';
+      case 'TrustSet':
+        return 'bg-primary';
+      default:
+        return 'bg-primary';
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Success Popup */}
+      {showRefreshSuccess && (
+        <div className="fixed top-4 right-4 z-50">
+          <div className="card bg-success/10 text-success p-4">
+            <div className="flex items-center space-x-2">
+              <span>Transactions Updated!</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wallet Info Card */}
+      <div className="card bg-gradient-to-br from-surface-light to-surface p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold">My Wallet</h2>
+            <div className="flex items-center mt-2 space-x-2">
+              <p className="text-sm text-muted font-mono">
+                {isAddressHidden 
+                  ? '••••••••••••••••••••••••••••••••••'
+                  : wallet.address
+                }
+              </p>
+              <button
+                onClick={() => setIsAddressHidden(!isAddressHidden)}
+                className="btn btn-icon btn-sm"
+                title={isAddressHidden ? "Show address" : "Hide address"}
+              >
+                {isAddressHidden ? <RiEyeLine /> : <RiEyeOffLine />}
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="btn btn-icon"
+              title="Refresh transactions"
+            >
+              <RiRefreshLine className={`text-xl ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <a
+              href={getAccountExplorerUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary"
+              title="View in Explorer"
+            >
+              <RiExternalLinkLine className="text-xl mr-2" />
+              Explorer
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Account Activation Warning */}
       {!isAccountActivated && (
         <motion.div
@@ -169,18 +270,21 @@ export const Activity: React.FC<ActivityProps> = ({ wallet, client, currentNetwo
             >
               <div className="p-4">
                 <div className="flex items-start space-x-4">
-                  <div className={`w-10 h-10 rounded-lg bg-surface-light flex items-center justify-center ${
-                    tx.xrpBalanceChange.startsWith('-') ? 'text-error' : 'text-success'
-                  }`}>
-                    {tx.type === 'Payment' ? (
-                      tx.xrpBalanceChange.startsWith('-') ? (
-                        <RiArrowUpLine className="text-xl" />
+                  <div className="relative">
+                    <div className={`w-10 h-10 rounded-lg bg-surface-light flex items-center justify-center ${
+                      tx.xrpBalanceChange.startsWith('-') ? 'text-error' : 'text-success'
+                    }`}>
+                      {tx.type === 'Payment' ? (
+                        tx.xrpBalanceChange.startsWith('-') ? (
+                          <RiArrowUpLine className="text-xl" />
+                        ) : (
+                          <RiArrowDownLine className="text-xl" />
+                        )
                       ) : (
-                        <RiArrowDownLine className="text-xl" />
-                      )
-                    ) : (
-                      <RiSwapLine className="text-xl" />
-                    )}
+                        <RiSwapLine className="text-xl" />
+                      )}
+                    </div>
+                    <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${getBulletColor(tx.type, tx.xrpBalanceChange.startsWith('-'))}`} />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">

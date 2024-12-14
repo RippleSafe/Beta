@@ -8,14 +8,19 @@ node_modules/
 
 # Production
 /build
-/dist
+/chrome-extension/build
 
-# Environment files
-.env
+# Misc
+.DS_Store
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # IDE
 .idea/
@@ -23,45 +28,6 @@ node_modules/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Vercel
-.vercel
-
-# TypeScript
-*.tsbuildinfo
-
-# Logs
-logs
-*.log
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# Zone Identifier files (Windows)
-*:Zone.Identifier
+# Chrome Extension
+*.pem
+*.crx

@@ -435,6 +435,37 @@ export const revokeTrustline = async (
     
     const xrplWallet = Wallet.fromSeed(wallet.seed);
     
+    // Check if there's any remaining balance
+    const initialTrustlines = await getTrustlines(client, wallet.address, ensureConnection);
+    const trustline = initialTrustlines.find(line => line.currency === currency && line.account === issuer);
+    
+    if (trustline && Number(trustline.balance) > 0) {
+      // Burn remaining tokens by sending them back to issuer
+      const payment: Payment = {
+        TransactionType: "Payment",
+        Account: wallet.address,
+        Destination: issuer,
+        Amount: {
+          currency,
+          issuer,
+          value: trustline.balance
+        },
+        Flags: 0
+      };
+
+      const preparedPayment = await client.autofill(payment);
+      const signedPayment = xrplWallet.sign(preparedPayment);
+      const burnResult = await client.submitAndWait(signedPayment.tx_blob);
+
+      if (burnResult.result.meta && typeof burnResult.result.meta !== 'string' &&
+          burnResult.result.meta.TransactionResult !== 'tesSUCCESS') {
+        throw new Error(`Failed to burn tokens: ${burnResult.result.meta.TransactionResult}`);
+      }
+
+      // Wait a moment for the burn to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
     const trustSet: TrustSet = {
       TransactionType: "TrustSet",
       Account: wallet.address,
@@ -468,8 +499,8 @@ export const revokeTrustline = async (
 
     // Wait a moment and verify the trustline is gone
     await new Promise(resolve => setTimeout(resolve, 1000));
-    const lines = await getTrustlines(client, wallet.address, ensureConnection);
-    const trustlineExists = lines.some(line => 
+    const finalTrustlines = await getTrustlines(client, wallet.address, ensureConnection);
+    const trustlineExists = finalTrustlines.some(line => 
       line.currency === currency && 
       line.account === issuer && 
       Number(line.limit) > 0
