@@ -40,11 +40,34 @@ const App: React.FC = () => {
     if (storedWallet) {
       try {
         const parsedWallet = JSON.parse(storedWallet);
+        // Validate wallet structure
+        if (!parsedWallet.address || !parsedWallet.publicKey || !parsedWallet.seed) {
+          console.error('Invalid wallet structure:', {
+            hasAddress: !!parsedWallet.address,
+            hasPublicKey: !!parsedWallet.publicKey,
+            hasSeed: !!parsedWallet.seed
+          });
+          throw new Error('Invalid wallet structure');
+        }
+        
         console.log('Wallet parsed successfully:', {
           address: parsedWallet.address,
-          hasPublicKey: !!parsedWallet.publicKey
+          hasPublicKey: !!parsedWallet.publicKey,
+          hasSeed: !!parsedWallet.seed
         });
-        setWallet(parsedWallet);
+        
+        // Ensure we have the complete wallet data
+        const existingWallet = JSON.parse(localStorage.getItem('wallet') || '{}');
+        const completeWallet = {
+          ...existingWallet,
+          ...parsedWallet,
+          // Ensure we keep the seed if it exists
+          seed: parsedWallet.seed || existingWallet.seed
+        };
+        
+        setWallet(completeWallet);
+        // Save the complete wallet back to localStorage
+        localStorage.setItem('wallet', JSON.stringify(completeWallet));
         setIsFirstTimeUser(false);
       } catch (e) {
         console.error('Error parsing stored wallet:', e);
@@ -167,30 +190,40 @@ const App: React.FC = () => {
 
   const handleWalletCreated = (newWallet: any) => {
     try {
+      // Validate wallet structure
+      if (!newWallet.address || !newWallet.publicKey || !newWallet.seed) {
+        console.error('Invalid new wallet structure:', {
+          hasAddress: !!newWallet.address,
+          hasPublicKey: !!newWallet.publicKey,
+          hasSeed: !!newWallet.seed
+        });
+        throw new Error('Invalid wallet structure');
+      }
+
       console.log('Creating new wallet:', {
         address: newWallet.address,
-        hasPublicKey: !!newWallet.publicKey
+        hasPublicKey: !!newWallet.publicKey,
+        hasSeed: !!newWallet.seed
       });
       
-      setWallet(newWallet);
-      localStorage.setItem('wallet', JSON.stringify(newWallet));
+      // Ensure we have all required wallet data
+      const walletData = {
+        address: newWallet.address,
+        publicKey: newWallet.publicKey,
+        seed: newWallet.seed,
+        mnemonic: newWallet.mnemonic
+      };
+      
+      setWallet(walletData);
+      localStorage.setItem('wallet', JSON.stringify(walletData));
       localStorage.setItem('network', 'mainnet');
       
       console.log('Wallet saved to localStorage');
       setIsFirstTimeUser(false);
     } catch (error) {
       console.error('Error saving wallet:', error);
-      // Try to save without sensitive data
-      try {
-        const safeWallet = {
-          address: newWallet.address,
-          publicKey: newWallet.publicKey
-        };
-        localStorage.setItem('wallet', JSON.stringify(safeWallet));
-        console.log('Saved wallet with reduced data');
-      } catch (e) {
-        console.error('Failed to save even reduced wallet data:', e);
-      }
+      // Don't try to save incomplete wallet data
+      throw new Error('Failed to save wallet: ' + error.message);
     }
   };
 
