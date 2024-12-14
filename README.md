@@ -1,7 +1,7 @@
-# RippleSafe
+# RippleSafe - Your Secure XRP Wallet
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/SOLXMR/RippleSafe/main/public/RippleSafeLogo/cover.png" alt="RippleSafe Logo" width="400"/>
+  <img src="https://raw.githubusercontent.com/RippleSafe/RippleSafe/main/public/RippleSafeLogo/cover.png" alt="RippleSafe Logo" width="400"/>
   
   <p align="center">
     <strong>Secure, Simple, Safe XRP Management</strong>
