@@ -69,8 +69,11 @@ const App: React.FC = () => {
         // Save the complete wallet back to localStorage
         localStorage.setItem('wallet', JSON.stringify(completeWallet));
         setIsFirstTimeUser(false);
-      } catch (e) {
-        console.error('Error parsing stored wallet:', e);
+      } catch (error: unknown) {
+        console.error('Error parsing stored wallet:', error);
+        if (error instanceof Error) {
+          console.error('Error details:', error.message);
+        }
         localStorage.removeItem('wallet');
         setIsFirstTimeUser(true);
       }
@@ -137,11 +140,15 @@ const App: React.FC = () => {
             const parsedWallet = JSON.parse(storedWallet);
             console.log('Found wallet in localStorage:', {
               address: parsedWallet.address,
-              hasPublicKey: !!parsedWallet.publicKey
+              hasPublicKey: !!parsedWallet.publicKey,
+              hasSeed: !!parsedWallet.seed
             });
             setWallet(parsedWallet);
-          } catch (e) {
-            console.error('Error parsing stored wallet:', e);
+          } catch (error: unknown) {
+            console.error('Error parsing stored wallet:', error);
+            if (error instanceof Error) {
+              console.error('Error details:', error.message);
+            }
           }
         } else {
           console.log('No wallet found in localStorage');
@@ -149,7 +156,8 @@ const App: React.FC = () => {
       } else {
         console.log('Wallet already loaded in state:', {
           address: wallet.address,
-          hasPublicKey: !!wallet.publicKey
+          hasPublicKey: !!wallet.publicKey,
+          hasSeed: !!wallet.seed
         });
       }
     } catch (error: unknown) {
@@ -220,10 +228,15 @@ const App: React.FC = () => {
       
       console.log('Wallet saved to localStorage');
       setIsFirstTimeUser(false);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving wallet:', error);
       // Don't try to save incomplete wallet data
-      throw new Error('Failed to save wallet: ' + error.message);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'string'
+          ? error
+          : 'Unknown error';
+      throw new Error('Failed to save wallet: ' + errorMessage);
     }
   };
 
